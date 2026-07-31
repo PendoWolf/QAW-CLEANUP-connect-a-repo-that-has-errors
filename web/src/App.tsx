@@ -41,6 +41,11 @@ export default function App() {
       const task = await createTask(trimmed);
       setTasks((prev) => [...prev, task]);
       setTitle("");
+      window.pendo?.track("task_created", {
+        taskId: task.id,
+        titleLength: trimmed.length,
+        totalTaskCount: tasks.length + 1,
+      });
     } catch (e) {
       setError((e as Error).message);
     }
@@ -51,6 +56,15 @@ export default function App() {
     try {
       const updated = await updateTask(task.id, { done: !task.done });
       setTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+      const completedCount = tasks.filter((t) =>
+        t.id === updated.id ? updated.done : t.done,
+      ).length;
+      window.pendo?.track("task_status_changed", {
+        taskId: updated.id,
+        newStatus: updated.done ? "completed" : "active",
+        totalTaskCount: tasks.length,
+        completedTaskCount: completedCount,
+      });
     } catch (e) {
       setError((e as Error).message);
     }
@@ -59,8 +73,14 @@ export default function App() {
   const onDelete = async (id: string) => {
     setError(null);
     try {
+      const taskToDelete = tasks.find((t) => t.id === id);
       await deleteTask(id);
       setTasks((prev) => prev.filter((t) => t.id !== id));
+      window.pendo?.track("task_deleted", {
+        taskId: id,
+        wasCompleted: taskToDelete?.done ?? false,
+        remainingTaskCount: tasks.length - 1,
+      });
     } catch (e) {
       setError((e as Error).message);
     }
@@ -79,7 +99,10 @@ export default function App() {
         Task Tracker {brokenLabel}
       </h1>
 
-      <form onSubmit={(e) => void onAdd(e)} style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+      <form
+        onSubmit={(e) => void onAdd(e)}
+        style={{ display: "flex", gap: 8, marginBottom: 16 }}
+      >
         <input
           data-testid="task-input"
           type="text"
@@ -91,14 +114,21 @@ export default function App() {
         <button
           data-testid="add-btn"
           type="submit"
-          style={{ padding: "0.5rem 1rem", fontSize: "1rem", cursor: "pointer" }}
+          style={{
+            padding: "0.5rem 1rem",
+            fontSize: "1rem",
+            cursor: "pointer",
+          }}
         >
           Add
         </button>
       </form>
 
       {error && (
-        <p data-testid="error" style={{ color: "crimson", textAlign: "center" }}>
+        <p
+          data-testid="error"
+          style={{ color: "crimson", textAlign: "center" }}
+        >
           {error}
         </p>
       )}
@@ -110,7 +140,10 @@ export default function App() {
           No tasks yet.
         </p>
       ) : (
-        <ul data-testid="task-list" style={{ listStyle: "none", padding: 0, margin: 0 }}>
+        <ul
+          data-testid="task-list"
+          style={{ listStyle: "none", padding: 0, margin: 0 }}
+        >
           {tasks.map((task) => (
             <li
               key={task.id}
